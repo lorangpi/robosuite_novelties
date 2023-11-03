@@ -16,6 +16,7 @@ from robosuite.models.objects import (
     MilkObject,
     MilkVisualObject,
     DoorObject,
+    BallVisualObject,
 )
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.observables import Observable, sensor
@@ -207,7 +208,7 @@ class PickPlace(SingleArmEnv):
         self.object_to_id = {"milk": 0, "bread": 1, "cereal": 2, "can": 3, "door": 4}
         self.object_id_to_sensors = {}  # Maps object id to sensor names for that object
         self.obj_names = ["Milk", "Bread", "Cereal", "Can", "Door"]
-        self.visual_obj_names = ["Milk", "Bread", "Cereal", "Can"]
+        self.visual_obj_names = ["Milk", "Bread", "Cereal", "Can", "Ball"]
         if object_type is not None:
             assert object_type in self.object_to_id.keys(), "invalid @object_type argument - choose one of {}".format(
                 list(self.object_to_id.keys())
@@ -239,6 +240,12 @@ class PickPlace(SingleArmEnv):
             damping=0.2,
             #TODO NOVELTY: True to Lock the door
             lock=False,
+        )
+
+        # Add visual target ball object
+        self.visual_target = BallVisualObject(
+            name="Ball",
+            size=[0.1],
         )
 
         super().__init__(
@@ -490,20 +497,36 @@ class PickPlace(SingleArmEnv):
             # placement is relative to object bin, so compute difference and send to placement initializer
             rel_center = bin_center - self.bin1_pos[:2]
 
-            self.placement_initializer.append_sampler(
-                sampler=UniformRandomSampler(
-                    name=f"{vis_obj.name}ObjectSampler",
-                    mujoco_objects=vis_obj,
-                    x_range=[rel_center[0], rel_center[0]],
-                    y_range=[rel_center[1], rel_center[1]],
-                    rotation=0.0,
-                    rotation_axis="z",
-                    ensure_object_boundary_in_range=False,
-                    ensure_valid_placement=False,
-                    reference_pos=self.bin1_pos,
-                    z_offset=self.bin2_pos[2] - self.bin1_pos[2],
+            if vis_obj.name == "Ball":
+                self.placement_initializer.append_sampler(
+                    sampler=UniformRandomSampler(
+                        name=f"{vis_obj.name}ObjectSampler",
+                        mujoco_objects=vis_obj,
+                        x_range=[0.050, 0.051],
+                        y_range=[-0.095, -0.094],
+                        rotation=0.0,
+                        rotation_axis="z",
+                        ensure_object_boundary_in_range=False,
+                        ensure_valid_placement=False,
+                        reference_pos=self.bin1_pos,
+                        z_offset=self.bin2_pos[2] - self.bin1_pos[2] + 0.1,
+                    )
                 )
-            )
+            else:
+                self.placement_initializer.append_sampler(
+                    sampler=UniformRandomSampler(
+                        name=f"{vis_obj.name}ObjectSampler",
+                        mujoco_objects=vis_obj,
+                        x_range=[rel_center[0], rel_center[0]],
+                        y_range=[rel_center[1], rel_center[1]],
+                        rotation=0.0,
+                        rotation_axis="z",
+                        ensure_object_boundary_in_range=False,
+                        ensure_valid_placement=False,
+                        reference_pos=self.bin1_pos,
+                        z_offset=self.bin2_pos[2] - self.bin1_pos[2],
+                    )
+                )
             index += 1
 
     def _construct_visual_objects(self):
@@ -513,11 +536,13 @@ class PickPlace(SingleArmEnv):
         self.visual_objects = []
         for vis_obj_cls, obj_name in zip(
                 (MilkVisualObject, BreadVisualObject, CerealVisualObject, CanVisualObject),
-                self.visual_obj_names,
+                self.visual_obj_names[:-1],
         ):
             vis_name = "Visual" + obj_name
             vis_obj = vis_obj_cls(name=vis_name)
             self.visual_objects.append(vis_obj)
+        self.visual_objects.append(self.visual_target)
+
 
     def _construct_objects(self):
         """
@@ -726,6 +751,7 @@ class PickPlace(SingleArmEnv):
             # Sample from the placement initializer for all objects
             object_placements = self.placement_initializer.sample()
             door_placement = object_placements.pop("Door")
+            target_placement = object_placements.pop("Ball")
             # Loop through all objects and reset their positions
             for obj_pos, obj_quat, obj in object_placements.values():
                 # Set the visual object body locations
@@ -742,6 +768,13 @@ class PickPlace(SingleArmEnv):
             door_body_id = self.sim.model.body_name2id(self.door.root_body)
             self.sim.model.body_pos[door_body_id] = door_pos
             self.sim.model.body_quat[door_body_id] = door_quat
+
+            # Set the target position
+            # We know we're only setting a single object (the target), so specifically set its pose
+            target_pos, target_quat, _ = target_placement
+            target_body_id = self.sim.model.body_name2id(self.visual_target.root_body)
+            self.sim.model.body_pos[target_body_id] = target_pos
+            self.sim.model.body_quat[target_body_id] = target_quat
 
 
         # Set the bins to the desired position

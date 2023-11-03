@@ -484,7 +484,7 @@ class MujocoEnv(metaclass=EnvMeta):
         """
         object_names = {object_names} if type(object_names) is str else set(object_names)
         for obj in self.model.mujoco_objects:
-            if obj.name in object_names:
+            if obj.name in object_names and obj.name != "Door":
                 self.sim.data.set_joint_qpos(obj.joints[0], np.array((10, 10, 10, 1, 0, 0, 0)))
 
     def visualize(self, vis_settings):

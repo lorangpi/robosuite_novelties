@@ -69,3 +69,21 @@ class BallObject(PrimitiveObject):
 
     def get_bounding_box_half_size(self):
         return np.array([self.size[0], self.size[0], self.size[0]])
+
+
+class BallVisualObject(BallObject):
+    """
+    Visual fiducial of coke can (used in PickPlace)
+
+    Fiducial objects are not involved in collision physics.
+    They provide a point of reference to indicate a position.
+    """
+
+    def __init__(self, name, size):
+        super().__init__(
+            name=name,
+            size=size,
+            joints=None,
+            obj_type="visual",
+            duplicate_collision_geoms=True,
+        )
