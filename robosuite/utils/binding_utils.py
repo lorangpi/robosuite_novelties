@@ -1007,6 +1007,7 @@ class MjData(metaclass=_MjDataMeta):
         """
         addr = self.model.get_joint_qpos_addr(name)
         if isinstance(addr, (int, np.int32, np.int64)):
+            value = 1
             self.qpos[addr] = value
         else:
             start_i, end_i = addr

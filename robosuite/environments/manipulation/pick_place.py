@@ -17,6 +17,9 @@ from robosuite.models.objects import (
     MilkVisualObject,
     DoorObject,
     BallVisualObject,
+    CylinderObject,
+    PlateWithHoleObject,
+
 )
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.observables import Observable, sensor
@@ -202,13 +205,20 @@ class PickPlace(SingleArmEnv):
         camera_segmentations=None,  # {None, instance, class, element}
         renderer="mujoco",
         renderer_config=None,
+        cylinder_pos=(0.1, 0.27, 0.1),
+        plate_pos=(-0.4, 0.525, 0.1),
+        door_pos=(-0.08, -0.26, 0.1, -3*np.pi/2),
+        door_locked=None,
+        novelty=None,
+        
     ):
         # task settings
         self.single_object_mode = single_object_mode
-        self.object_to_id = {"milk": 0, "bread": 1, "cereal": 2, "can": 3, "door": 4}
+        self.object_to_id = {"milk": 0, "bread": 1, "cereal": 2, "can": 3, "door": 4, "cylinder": 5, "plate": 6}
         self.object_id_to_sensors = {}  # Maps object id to sensor names for that object
-        self.obj_names = ["Milk", "Bread", "Cereal", "Can", "Door"]
-        self.visual_obj_names = ["Milk", "Bread", "Cereal", "Can", "Ball"]
+        self.obj_names = ["Milk", "Bread", "Cereal", "Can", "Door", "Cylinder", "Plate"]
+        #self.visual_obj_names = ["Milk", "Bread", "Cereal", "Can", "Ball"]
+        self.visual_obj_names = ["Can", "Ball"]
         if object_type is not None:
             assert object_type in self.object_to_id.keys(), "invalid @object_type argument - choose one of {}".format(
                 list(self.object_to_id.keys())
@@ -232,14 +242,49 @@ class PickPlace(SingleArmEnv):
 
         # whether to use ground-truth object states
         self.use_object_obs = use_object_obs
+
+        # Novelties settings
+        self.novelty = novelty
+        self.spawn_range = {"Door":0.1, "Cylinder": 0.05, "Plate": 0.1}
+        if self.novelty == "Door":
+            self.spawn_range["Door"] = 0.001
+            self.spawn_range["Cylinder"] = 0.001
+        elif self.novelty == "Cylinder":
+            self.spawn_range["Cylinder"] = 0.001
+        elif self.novelty == "Plate":
+            self.spawn_range["Plate"] = 0.001
+            self.spawn_range["Cylinder"] = 0.001
     
+        # Randomize door, cylinder, and plate positions in the range defined by self.spawn_range (creates an array of 3 random numbers in the range)
+        rdn_door_y = door_pos[1] + np.random.uniform(-self.spawn_range["Door"], self.spawn_range["Door"], size=1)
+        self.door_pos = np.concatenate(([door_pos[0]], rdn_door_y, door_pos[2:]))
+        rdn_cylinder_x = cylinder_pos[0] + np.random.uniform(-self.spawn_range["Cylinder"], self.spawn_range["Cylinder"], size=1)
+        rdn_cylinder_y = cylinder_pos[1] + np.random.uniform(-3*self.spawn_range["Cylinder"], 3*self.spawn_range["Cylinder"], size=1)
+        self.cylinder_pos = np.concatenate((rdn_cylinder_x, rdn_cylinder_y, cylinder_pos[2:]))
+        self.plate_pos = plate_pos + np.random.uniform(-self.spawn_range["Plate"], self.spawn_range["Plate"], size=3)
+
+
         # Add door object
         self.door = DoorObject(
             name="Door",
             friction=0.2,
             damping=0.2,
             #TODO NOVELTY: True to Lock the door
-            lock=False,
+            lock=door_locked if door_locked != None else random.choice([True, False]),
+        )
+
+        # Add cylinder object as an obstacle
+        self.cylinder = CylinderObject(
+            name="Cylinder",
+            size=[0.03, 0.4],
+            rgba=[0.1, 0.8, 0.1, 1],
+            joints=None,
+            #obj_type="collision",
+            #friction=0.2,
+        )
+
+        self.plate = PlateWithHoleObject(
+            name="Plate",
         )
 
         # Add visual target ball object
@@ -315,6 +360,19 @@ class PickPlace(SingleArmEnv):
             if self.single_object_mode == 0:
                 reward /= 4.0
         return reward
+
+    def open_door(self, object_names):
+        """
+        Clears objects with the name @object_names out of the task space. This is useful
+        for supporting task modes with single types of objects, as in
+        @self.single_object_mode without changing the model definition.
+        Args:
+            object_names (str or list of str): Name of object(s) to remove from the task workspace
+        """
+        object_names = {object_names} if type(object_names) is str else set(object_names)
+        for obj in self.model.mujoco_objects:
+            if obj.name in object_names:
+                self.sim.data.set_joint_qpos('Door_hinge', np.array((10, 10, 10, 1, 0, 0, 0)))
 
     def staged_rewards(self):
         """
@@ -443,7 +501,7 @@ class PickPlace(SingleArmEnv):
         self.placement_initializer.append_sampler(
             sampler=UniformRandomSampler(
                 name="CollisionObjectSampler",
-                mujoco_objects=self.objects[:-1],
+                mujoco_objects=self.objects[:4],
                 x_range=[-bin_x_half, 0],
                 y_range=[-bin_y_half/2, bin_y_half],
                 rotation=self.z_rotation,
@@ -454,13 +512,16 @@ class PickPlace(SingleArmEnv):
                 z_offset=self.z_offset,
             )
         )
+        #self.door_pos = (-0.05, -0.135, 0.1, -5*np.pi / 4.0)
+        #self.door_pos = (0.06, -0.135, 0.1, -1*np.pi / 4.0)
+        #self.door_pos = (-0.05, 0.4, 0.1, -np.pi/2)
         self.placement_initializer.append_sampler(
             sampler=UniformRandomSampler(
-                name="ObjectSampler",
-                mujoco_objects=self.objects[-1],
-                x_range=[-0.051, -0.050],
-                y_range=[-0.135, -0.134],
-                rotation=-5*np.pi / 4.0,
+                name="DoorObjectSampler",
+                mujoco_objects=self.objects[-3],
+                x_range=[self.door_pos[0], self.door_pos[0]+0.001],
+                y_range=[self.door_pos[1], self.door_pos[1]+0.001],
+                rotation=self.door_pos[3],
                 #TODO NOVELTY: Values for the novelty injection
                 #x_range=[0.050, 0.051],
                 #y_range=[0.470, 0.471],
@@ -469,11 +530,38 @@ class PickPlace(SingleArmEnv):
                 ensure_object_boundary_in_range=False,
                 ensure_valid_placement=False,
                 reference_pos=self.bin1_pos,
-                z_offset=self.z_offset+0.1,
+                z_offset=self.z_offset + self.door_pos[2],
+            )
+        )
+        self.placement_initializer.append_sampler(
+            sampler=UniformRandomSampler(
+                name="CylinderObjectSampler",
+                mujoco_objects=self.objects[-2],
+                x_range=[self.cylinder_pos[0], self.cylinder_pos[0]+0.001],
+                y_range=[self.cylinder_pos[1], self.cylinder_pos[1]+0.001],
+                rotation=0.0,
+                rotation_axis="z",
+                ensure_object_boundary_in_range=False,
+                ensure_valid_placement=False,
+                reference_pos=self.bin1_pos,
+                z_offset=self.z_offset + self.cylinder_pos[2],
+            )
+        )
+        self.placement_initializer.append_sampler(
+            sampler=UniformRandomSampler(
+                name="PlateObjectSampler",
+                mujoco_objects=self.objects[-1],
+                x_range=[self.plate_pos[0], self.plate_pos[0]+0.001],
+                y_range=[self.plate_pos[1], self.plate_pos[1]+0.001],
+                rotation=0.0,
+                rotation_axis="z",
+                ensure_object_boundary_in_range=False,
+                ensure_valid_placement=False,
+                reference_pos=self.bin1_pos,
+                z_offset=self.z_offset + self.plate_pos[2] + self.bin2_pos[2] - self.bin1_pos[2],
             )
         )
 
-        
         # each visual object should just be at the center of each target bin
         index = 0
         for vis_obj in self.visual_objects:
@@ -496,20 +584,21 @@ class PickPlace(SingleArmEnv):
 
             # placement is relative to object bin, so compute difference and send to placement initializer
             rel_center = bin_center - self.bin1_pos[:2]
-
             if vis_obj.name == "Ball":
+                #self.target_pos = (-0.195, -0.185, 0.37)
+                self.target_pos = (-0.04, -0.02, 0.37)
                 self.placement_initializer.append_sampler(
                     sampler=UniformRandomSampler(
                         name=f"{vis_obj.name}ObjectSampler",
                         mujoco_objects=vis_obj,
-                        x_range=[0.050, 0.051],
-                        y_range=[-0.095, -0.094],
+                        x_range=[self.target_pos[0], self.target_pos[0]+0.001],
+                        y_range=[self.target_pos[1], self.target_pos[1]+0.001],
                         rotation=0.0,
                         rotation_axis="z",
                         ensure_object_boundary_in_range=False,
                         ensure_valid_placement=False,
                         reference_pos=self.bin1_pos,
-                        z_offset=self.bin2_pos[2] - self.bin1_pos[2] + 0.1,
+                        z_offset=self.bin2_pos[2] - self.bin1_pos[2] + self.target_pos[2],
                     )
                 )
             else:
@@ -534,6 +623,7 @@ class PickPlace(SingleArmEnv):
         Function that can be overriden by subclasses to load different objects.
         """
         self.visual_objects = []
+        """
         for vis_obj_cls, obj_name in zip(
                 (MilkVisualObject, BreadVisualObject, CerealVisualObject, CanVisualObject),
                 self.visual_obj_names[:-1],
@@ -541,6 +631,10 @@ class PickPlace(SingleArmEnv):
             vis_name = "Visual" + obj_name
             vis_obj = vis_obj_cls(name=vis_name)
             self.visual_objects.append(vis_obj)
+        """
+        vis_name = "VisualCan"
+        vis_obj = CanVisualObject(name=vis_name)
+        self.visual_objects.append(vis_obj)
         self.visual_objects.append(self.visual_target)
 
 
@@ -551,11 +645,13 @@ class PickPlace(SingleArmEnv):
         self.objects = []
         for obj_cls, obj_name in zip(
                 (MilkObject, BreadObject, CerealObject, CanObject),
-                self.obj_names[:-1],
+                self.obj_names[:4],
         ):  
             obj = obj_cls(name=obj_name)
             self.objects.append(obj)
         self.objects.append(self.door)
+        self.objects.append(self.cylinder)
+        self.objects.append(self.plate)
 
     def _load_model(self):
         """
@@ -688,6 +784,7 @@ class PickPlace(SingleArmEnv):
                     enabled=enabled,
                     active=active,
                 )
+        #print(observables)
 
         return observables
 
@@ -752,6 +849,8 @@ class PickPlace(SingleArmEnv):
             object_placements = self.placement_initializer.sample()
             door_placement = object_placements.pop("Door")
             target_placement = object_placements.pop("Ball")
+            cylinder_placement = object_placements.pop("Cylinder")
+            plate_placement = object_placements.pop("Plate")
             # Loop through all objects and reset their positions
             for obj_pos, obj_quat, obj in object_placements.values():
                 # Set the visual object body locations
@@ -768,6 +867,20 @@ class PickPlace(SingleArmEnv):
             door_body_id = self.sim.model.body_name2id(self.door.root_body)
             self.sim.model.body_pos[door_body_id] = door_pos
             self.sim.model.body_quat[door_body_id] = door_quat
+
+            # Set the cylinder obstacle position
+            # We know we're only setting a single object (the cylinder), so specifically set its pose
+            cylinder_pos, cylinder_quat, _ = cylinder_placement
+            cylinder_body_id = self.sim.model.body_name2id(self.cylinder.root_body)
+            self.sim.model.body_pos[cylinder_body_id] = cylinder_pos
+            self.sim.model.body_quat[cylinder_body_id] = cylinder_quat
+
+            # Set the plate obstacle position
+            # We know we're only setting a single object (the plate), so specifically set its pose
+            plate_pos, plate_quat, _ = plate_placement
+            plate_body_id = self.sim.model.body_name2id(self.plate.root_body)
+            self.sim.model.body_pos[plate_body_id] = plate_pos
+            self.sim.model.body_quat[plate_body_id] = plate_quat
 
             # Set the target position
             # We know we're only setting a single object (the target), so specifically set its pose

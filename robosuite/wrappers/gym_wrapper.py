@@ -8,10 +8,11 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces, Env
 
+from robosuite.wrappers import GoalEnv
 from robosuite.wrappers import Wrapper
 
 
-class GymWrapper(Wrapper, gym.Env):
+class GymWrapper(Wrapper, GoalEnv):
     metadata = None
     render_mode = None
     """
@@ -115,6 +116,7 @@ class GymWrapper(Wrapper, gym.Env):
                 - (bool) episode ending after an externally defined condition
                 - (dict) misc information
         """
+        
         ob_dict, reward, terminated, info = self.env.step(action)
         return self._flatten_obs(ob_dict), reward, terminated, self.done, info
 

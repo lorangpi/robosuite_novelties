@@ -339,6 +339,7 @@ class MujocoEnv(metaclass=EnvMeta):
         # Force an update if requested
         if force_update:
             self._update_observables(force=True)
+        
 
         # Loop through all observables and grab their current observation
         for obs_name, observable in self._observables.items():
@@ -358,6 +359,8 @@ class MujocoEnv(metaclass=EnvMeta):
             if modality == "image-state" and not macros.CONCATENATE_IMAGES:
                 continue
             observations[modality] = np.concatenate(obs, axis=-1)
+
+        #print(observations.keys())
 
         return observations
 
@@ -484,7 +487,7 @@ class MujocoEnv(metaclass=EnvMeta):
         """
         object_names = {object_names} if type(object_names) is str else set(object_names)
         for obj in self.model.mujoco_objects:
-            if obj.name in object_names and obj.name != "Door":
+            if obj.name in object_names and obj.name not in ["Door", "Cylinder", "Plate"]:
                 self.sim.data.set_joint_qpos(obj.joints[0], np.array((10, 10, 10, 1, 0, 0, 0)))
 
     def visualize(self, vis_settings):
