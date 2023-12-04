@@ -205,10 +205,14 @@ class PickPlace(SingleArmEnv):
         camera_segmentations=None,  # {None, instance, class, element}
         renderer="mujoco",
         renderer_config=None,
+        activate_pos=(-0.25, -0.02, 0.37),
+        lightswitch_pos=(-0.25, 0.2, 0.37),
         cylinder_pos=(0.1, 0.27, 0.1),
         plate_pos=(-0.4, 0.525, 0.1),
         door_pos=(-0.08, -0.26, 0.1, -3*np.pi/2),
+        #door_pos=(-0.0, -0.23, 0.1, -1*np.pi/2),
         door_locked=None,
+        light_on=True,
         novelty=None,
         
     ):
@@ -218,7 +222,7 @@ class PickPlace(SingleArmEnv):
         self.object_id_to_sensors = {}  # Maps object id to sensor names for that object
         self.obj_names = ["Milk", "Bread", "Cereal", "Can", "Door", "Cylinder", "Plate"]
         #self.visual_obj_names = ["Milk", "Bread", "Cereal", "Can", "Ball"]
-        self.visual_obj_names = ["Can", "Ball"]
+        self.visual_obj_names = ["Can", "Ball", "Ball2"]
         if object_type is not None:
             assert object_type in self.object_to_id.keys(), "invalid @object_type argument - choose one of {}".format(
                 list(self.object_to_id.keys())
@@ -245,6 +249,9 @@ class PickPlace(SingleArmEnv):
 
         # Novelties settings
         self.novelty = novelty
+        self.light_on = light_on
+        self.activate_pos = np.array(activate_pos)
+        self.lightswitch_pos = np.array(lightswitch_pos)
         self.spawn_range = {"Door":0.1, "Cylinder": 0.05, "Plate": 0.1}
         if self.novelty == "Door":
             self.spawn_range["Door"] = 0.001
@@ -261,16 +268,18 @@ class PickPlace(SingleArmEnv):
         rdn_cylinder_x = cylinder_pos[0] + np.random.uniform(-self.spawn_range["Cylinder"], self.spawn_range["Cylinder"], size=1)
         rdn_cylinder_y = cylinder_pos[1] + np.random.uniform(-3*self.spawn_range["Cylinder"], 3*self.spawn_range["Cylinder"], size=1)
         self.cylinder_pos = np.concatenate((rdn_cylinder_x, rdn_cylinder_y, cylinder_pos[2:]))
-        self.plate_pos = plate_pos + np.random.uniform(-self.spawn_range["Plate"], self.spawn_range["Plate"], size=3)
-
+        rdn_plate_x = plate_pos[0] + np.random.uniform(-self.spawn_range["Plate"], self.spawn_range["Plate"], size=1)
+        rdn_plate_y = plate_pos[1] + np.random.uniform(-self.spawn_range["Plate"], self.spawn_range["Plate"], size=1)
+        self.plate_pos = np.concatenate((rdn_plate_x, rdn_plate_y, plate_pos[2:]))
+        #self.plate_pos = plate_pos + np.random.uniform(-self.spawn_range["Plate"], self.spawn_range["Plate"], size=3)
 
         # Add door object
         self.door = DoorObject(
             name="Door",
-            friction=0.2,
-            damping=0.2,
+            friction=0,
+            damping=0,
             #TODO NOVELTY: True to Lock the door
-            lock=door_locked if door_locked != None else random.choice([True, False]),
+            lock=door_locked if door_locked != None else random.choice([True, False]), 
         )
 
         # Add cylinder object as an obstacle
@@ -288,9 +297,17 @@ class PickPlace(SingleArmEnv):
         )
 
         # Add visual target ball object
-        self.visual_target = BallVisualObject(
+        self.visual_activate = BallVisualObject(
             name="Ball",
             size=[0.1],
+            rgba=[0.1, 0.1, 0.8, 0.7],
+        )
+
+        # Add visual lightswitch ball object
+        self.visual_lightswitch = BallVisualObject(
+            name="Ball2",
+            size=[0.1],
+            rgba=[0.8, 0.1, 0.1, 0.7],
         )
 
         super().__init__(
@@ -585,20 +602,33 @@ class PickPlace(SingleArmEnv):
             # placement is relative to object bin, so compute difference and send to placement initializer
             rel_center = bin_center - self.bin1_pos[:2]
             if vis_obj.name == "Ball":
-                #self.target_pos = (-0.195, -0.185, 0.37)
-                self.target_pos = (-0.04, -0.02, 0.37)
                 self.placement_initializer.append_sampler(
                     sampler=UniformRandomSampler(
                         name=f"{vis_obj.name}ObjectSampler",
                         mujoco_objects=vis_obj,
-                        x_range=[self.target_pos[0], self.target_pos[0]+0.001],
-                        y_range=[self.target_pos[1], self.target_pos[1]+0.001],
+                        x_range=[self.activate_pos[0], self.activate_pos[0]+0.001],
+                        y_range=[self.activate_pos[1], self.activate_pos[1]+0.001],
                         rotation=0.0,
                         rotation_axis="z",
                         ensure_object_boundary_in_range=False,
                         ensure_valid_placement=False,
                         reference_pos=self.bin1_pos,
-                        z_offset=self.bin2_pos[2] - self.bin1_pos[2] + self.target_pos[2],
+                        z_offset=self.activate_pos[2],
+                    )
+                )
+            elif vis_obj.name == "Ball2":
+                self.placement_initializer.append_sampler(
+                    sampler=UniformRandomSampler(
+                        name=f"{vis_obj.name}ObjectSampler",
+                        mujoco_objects=vis_obj,
+                        x_range=[self.lightswitch_pos[0], self.lightswitch_pos[0]+0.001],
+                        y_range=[self.lightswitch_pos[1], self.lightswitch_pos[1]+0.001],
+                        rotation=0.0,
+                        rotation_axis="z",
+                        ensure_object_boundary_in_range=False,
+                        ensure_valid_placement=False,
+                        reference_pos=self.bin1_pos,
+                        z_offset=self.lightswitch_pos[2],
                     )
                 )
             else:
@@ -635,7 +665,8 @@ class PickPlace(SingleArmEnv):
         vis_name = "VisualCan"
         vis_obj = CanVisualObject(name=vis_name)
         self.visual_objects.append(vis_obj)
-        self.visual_objects.append(self.visual_target)
+        self.visual_objects.append(self.visual_activate)
+        self.visual_objects.append(self.visual_lightswitch)
 
 
     def _construct_objects(self):
@@ -849,6 +880,7 @@ class PickPlace(SingleArmEnv):
             object_placements = self.placement_initializer.sample()
             door_placement = object_placements.pop("Door")
             target_placement = object_placements.pop("Ball")
+            lightswitch_placement = object_placements.pop("Ball2")
             cylinder_placement = object_placements.pop("Cylinder")
             plate_placement = object_placements.pop("Plate")
             # Loop through all objects and reset their positions
@@ -885,9 +917,16 @@ class PickPlace(SingleArmEnv):
             # Set the target position
             # We know we're only setting a single object (the target), so specifically set its pose
             target_pos, target_quat, _ = target_placement
-            target_body_id = self.sim.model.body_name2id(self.visual_target.root_body)
+            target_body_id = self.sim.model.body_name2id(self.visual_activate.root_body)
             self.sim.model.body_pos[target_body_id] = target_pos
             self.sim.model.body_quat[target_body_id] = target_quat
+
+            # Set the lightswitch position
+            # We know we're only setting a single object (the lightswitch), so specifically set its pose
+            lightswitch_pos, lightswitch_quat, _ = lightswitch_placement
+            lightswitch_body_id = self.sim.model.body_name2id(self.visual_lightswitch.root_body)
+            self.sim.model.body_pos[lightswitch_body_id] = lightswitch_pos
+            self.sim.model.body_quat[lightswitch_body_id] = lightswitch_quat
 
 
         # Set the bins to the desired position

@@ -17,6 +17,7 @@ from robosuite.environments.novelties.hole import Hole
 from robosuite.environments.novelties.locked import Locked
 from robosuite.environments.novelties.door import Door
 from robosuite.environments.novelties.elevated import Elevated
+from robosuite.environments.novelties.light_off import Lightoff
 
 from robosuite.environments import ALL_ENVIRONMENTS
 from robosuite.controllers import ALL_CONTROLLERS, load_controller_config

@@ -6,5 +6,5 @@ class Hole(PickPlaceCan):
     """
 
     def __init__(self, **kwargs):
-        super().__init__(plate_pos=(-0.137, 0.525, 0.1), novelty="Plate", **kwargs)
+        super().__init__(plate_pos=(-0.137, 0.525, 0.12), novelty="Plate", **kwargs)
 

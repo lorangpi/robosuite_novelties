@@ -79,11 +79,12 @@ class BallVisualObject(BallObject):
     They provide a point of reference to indicate a position.
     """
 
-    def __init__(self, name, size):
+    def __init__(self, name, size, rgba=None):
         super().__init__(
             name=name,
             size=size,
             joints=None,
             obj_type="visual",
             duplicate_collision_geoms=True,
+            rgba=rgba,
         )
