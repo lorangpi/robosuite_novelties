@@ -207,7 +207,7 @@ class PickPlace(SingleArmEnv):
         renderer_config=None,
         activate_pos=(-0.25, -0.02, 0.37),
         lightswitch_pos=(-0.25, 0.2, 0.37),
-        cylinder_pos=(0.1, 0.27, 0.1),
+        cylinder_pos=(0.15, 0.27, 0.1),
         plate_pos=(-0.4, 0.525, 0.1),
         door_pos=(-0.08, -0.26, 0.1, -3*np.pi/2),
         #door_pos=(-0.0, -0.23, 0.1, -1*np.pi/2),
@@ -252,7 +252,7 @@ class PickPlace(SingleArmEnv):
         self.light_on = light_on
         self.activate_pos = np.array(activate_pos)
         self.lightswitch_pos = np.array(lightswitch_pos)
-        self.spawn_range = {"Door":0.1, "Cylinder": 0.05, "Plate": 0.1}
+        self.spawn_range = {"Door":0.1, "Cylinder": 0.001, "Plate": 0.1}
         if self.novelty == "Door":
             self.spawn_range["Door"] = 0.001
             self.spawn_range["Cylinder"] = 0.001
