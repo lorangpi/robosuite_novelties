@@ -6,5 +6,5 @@ class Elevated(PickPlaceCan):
     """
 
     def __init__(self, **kwargs):
-        super().__init__(bin2_pos=(0.1, 0.28, 1), **kwargs)
+        super().__init__(bin2_pos=(0.1, 0.28, 0.95), **kwargs)
 
