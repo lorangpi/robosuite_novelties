@@ -205,8 +205,8 @@ class PickPlace(SingleArmEnv):
         camera_segmentations=None,  # {None, instance, class, element}
         renderer="mujoco",
         renderer_config=None,
-        activate_pos=(-0.25, -0.02, 0.37),
-        lightswitch_pos=(-0.25, 0.2, 0.37),
+        activate_pos=(-0.25, 0.23, 0.30),
+        lightswitch_pos=(-0.25, -0.02, 0.30),
         cylinder_pos=(0.15, 0.27, 0.1),
         plate_pos=(-0.4, 0.525, 0.1),
         door_pos=(-0.08, -0.26, 0.1, -3*np.pi/2),
@@ -299,14 +299,14 @@ class PickPlace(SingleArmEnv):
         # Add visual target ball object
         self.visual_activate = BallVisualObject(
             name="Ball",
-            size=[0.1],
+            size=[0.12],
             rgba=[0.1, 0.1, 0.8, 0.7],
         )
 
         # Add visual lightswitch ball object
         self.visual_lightswitch = BallVisualObject(
             name="Ball2",
-            size=[0.1],
+            size=[0.12],
             rgba=[0.8, 0.1, 0.1, 0.7],
         )
 
