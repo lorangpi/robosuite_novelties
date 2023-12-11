@@ -7,6 +7,6 @@ class Locked(PickPlaceCan):
     """
 
     def __init__(self, **kwargs):
-        super().__init__(door_pos=(-0.05, 0.35, 0.1, -np.pi/2), plate_pos=(-0.4, -0.225, 0.1), door_locked=True, novelty="Door", **kwargs)
+        super().__init__(door_pos=(-0.05, 0.4, 0.1, -np.pi/2), plate_pos=(-0.4, -0.225, 0.1), door_locked=True, novelty="Door", **kwargs)
 
 
