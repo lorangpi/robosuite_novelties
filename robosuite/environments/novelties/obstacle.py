@@ -6,5 +6,5 @@ class Obstacle(PickPlaceCan):
     """
 
     def __init__(self, **kwargs):
-        super().__init__(cylinder_pos=(0.02, 0.27, 0.1), novelty="Cylinder", **kwargs)
-
+        super().__init__(cylinder_pos=(-0.07, 0.27, 0.1), novelty="Cylinder", **kwargs)
+        #cylinder_pos=(0.02, 0.27, 0.1)
