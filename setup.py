@@ -13,6 +13,7 @@ long_description = "".join(lines)
 
 setup(
     name="robosuite",
+    package_dir={'':'src'},
     packages=[package for package in find_packages() if package.startswith("robosuite")],
     install_requires=[
         "numpy>=1.13.3",
