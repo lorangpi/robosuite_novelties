@@ -528,7 +528,7 @@ class PickPlace(SingleArmEnv):
                 rotation=self.z_rotation,
                 rotation_axis="z",
                 ensure_object_boundary_in_range=True,
-                ensure_valid_placement=True,
+                ensure_valid_placement=False,
                 reference_pos=self.bin1_pos,
                 z_offset=self.z_offset,
             )
